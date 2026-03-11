@@ -7,7 +7,7 @@ const path = require('path');
 
 // ─── Startup checks ────────────────────────────────────────────────────────
 
-const required = ['ANTHROPIC_API_KEY', 'TWILIO_AUTH_TOKEN', 'ELEVENLABS_API_KEY', 'BASE_URL', 'BUSINESS_NAME'];
+const required = ['ANTHROPIC_API_KEY', 'TWILIO_AUTH_TOKEN', 'ELEVENLABS_API_KEY', 'BASE_URL', 'BUSINESS_NAME', 'BUSINESS_PHONE'];
 const missing = required.filter(k => !process.env[k]);
 if (missing.length) {
   console.error('\n❌ Missing required environment variables:', missing.join(', '));
@@ -23,6 +23,7 @@ const {
   ELEVENLABS_API_KEY,
   ELEVENLABS_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL',
   BUSINESS_NAME,
+  BUSINESS_PHONE,
   BASE_URL,
   PORT = 3000,
 } = process.env;
@@ -50,7 +51,7 @@ function buildSystemPrompt(businessName) {
 
 RULES:
 - Keep every response under 35 words — this is a phone call
-- Sound natural and human, never robotic or scripted
+- Be calm, professional, and direct — no exclamations, no drama, no filler words
 - Ask only ONE question at a time — never stack questions
 - Never say you are an AI. If asked directly, say "I'm the receptionist for ${businessName}"
 
@@ -68,7 +69,7 @@ SIGNALS — append exactly one of these to your response when appropriate:
 - When the call should end naturally (after closing):
   [END]
 
-Always close with: "We'll follow up shortly!"`;
+When you have all the booking info, close with: "We'll send you a text summary of this call, and someone will follow up with you as soon as possible. Thanks for calling, take care!"`;
 }
 
 // ─── ElevenLabs TTS ────────────────────────────────────────────────────────
@@ -140,16 +141,8 @@ function parseBooking(reply) {
   };
 }
 
-// Play ElevenLabs audio via Twilio, with Twilio TTS fallback
-async function playText(twiml, text, callSid) {
-  const filename = `${callSid}-${Date.now()}.mp3`;
-  try {
-    await generateSpeech(text, filename);
-    twiml.play(`${BASE_URL}/audio/${filename}`);
-  } catch (err) {
-    console.warn('⚠️  ElevenLabs failed, using Twilio TTS:', err.message);
-    twiml.say({ voice: 'Polly.Joanna', language: 'en-US' }, text);
-  }
+function playText(twiml, text) {
+  twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, text);
 }
 
 function cleanReply(reply) {
@@ -160,19 +153,25 @@ function cleanReply(reply) {
 }
 
 async function sendSMSConfirmation(booking) {
-  const body =
-    `Hi ${booking.name}, we've received your request at ${BUSINESS_NAME}!\n` +
+  const customerBody =
+    `Hi ${booking.name}, here's a summary of your call with ${BUSINESS_NAME}:\n` +
     `Issue: ${booking.issue}\n` +
     `Location: ${booking.location}\n` +
     `Someone will follow up with you as soon as possible.`;
 
-  await twilioClient.messages.create({
-    body,
-    from: TWILIO_PHONE_NUMBER,
-    to: booking.phone,
-  });
+  const ownerBody =
+    `New lead from ${BUSINESS_NAME} receptionist:\n` +
+    `Name: ${booking.name}\n` +
+    `Phone: ${booking.phone}\n` +
+    `Issue: ${booking.issue}\n` +
+    `Location: ${booking.location}`;
 
-  console.log(`📱 SMS sent to ${booking.phone}`);
+  await Promise.all([
+    twilioClient.messages.create({ body: customerBody, from: TWILIO_PHONE_NUMBER, to: booking.phone }),
+    twilioClient.messages.create({ body: ownerBody, from: TWILIO_PHONE_NUMBER, to: BUSINESS_PHONE }),
+  ]);
+
+  console.log(`📱 SMS sent to customer (${booking.phone}) and owner (${BUSINESS_PHONE})`);
 }
 
 function scheduleAudioCleanup(callSid) {
@@ -195,13 +194,14 @@ app.post('/call/incoming', async (req, res) => {
   console.log(`📞 Incoming call [${callSid}]`);
 
   const greeting = `Hi, you've reached ${BUSINESS_NAME}. How can I help you today?`;
-  await playText(twiml, greeting, callSid);
+  playText(twiml, greeting);
 
   twiml.gather({
     input: 'speech',
     action: '/call/respond',
     method: 'POST',
     speechTimeout: 'auto',
+    timeout: 20,
     language: 'en-US',
   });
 
@@ -216,10 +216,11 @@ app.post('/call/respond', async (req, res) => {
 
   console.log(`🗣  [${callSid}] Caller: "${speech}"`);
 
-  // Nothing heard — prompt again
+  // Nothing heard for 20s — end the call gracefully
   if (!speech) {
-    twiml.say({ voice: 'Polly.Joanna' }, "Sorry, I didn't catch that — could you say that again?");
-    twiml.gather({ input: 'speech', action: '/call/respond', method: 'POST', speechTimeout: 'auto' });
+    twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, "We didn't hear anything. Feel free to call back anytime. Take care!");
+    twiml.hangup();
+    delete conversations[callSid];
     return res.type('text/xml').send(twiml.toString());
   }
 
@@ -229,7 +230,7 @@ app.post('/call/respond', async (req, res) => {
     aiReply = await getAIResponse(callSid, speech);
   } catch (err) {
     console.error('❌ AI error:', err.message);
-    twiml.say({ voice: 'Polly.Joanna' }, "I'm sorry, there was a technical issue. Please call back shortly.");
+    twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, "I'm sorry, there was a technical issue. Please call back shortly.");
     twiml.hangup();
     return res.type('text/xml').send(twiml.toString());
   }
@@ -249,7 +250,7 @@ app.post('/call/respond', async (req, res) => {
   const shouldEnd = aiReply.includes('[END]') || !!booking;
   const text = cleanReply(aiReply);
 
-  await playText(twiml, text, callSid);
+  playText(twiml, text);
 
   if (shouldEnd) {
     twiml.hangup();
@@ -261,6 +262,7 @@ app.post('/call/respond', async (req, res) => {
       action: '/call/respond',
       method: 'POST',
       speechTimeout: 'auto',
+      timeout: 20,
       language: 'en-US',
     });
   }
