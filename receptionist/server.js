@@ -58,14 +58,13 @@ YOUR TASK:
 For job requests, collect these one at a time:
   1. Description of the problem
   2. Their address or location
-  3. Their preferred date and time for service
-  4. Their name and a callback number
+  3. Their name and a callback number
 
 For general questions (hours, pricing, service area): answer briefly and helpfully.
 
 SIGNALS — append exactly one of these to your response when appropriate:
-- When you have all 4 pieces of booking info:
-  [BOOKING: name="X" phone="X" issue="X" location="X" time="X"]
+- When you have all 3 pieces of booking info:
+  [BOOKING: name="X" phone="X" issue="X" location="X"]
 - When the call should end naturally (after closing):
   [END]
 
@@ -138,7 +137,6 @@ function parseBooking(reply) {
     phone: get('phone'),
     issue: get('issue'),
     location: get('location'),
-    time: get('time'),
   };
 }
 
@@ -163,11 +161,10 @@ function cleanReply(reply) {
 
 async function sendSMSConfirmation(booking) {
   const body =
-    `Hi ${booking.name}, your booking with ${BUSINESS_NAME} is confirmed!\n` +
+    `Hi ${booking.name}, we've received your request at ${BUSINESS_NAME}!\n` +
     `Issue: ${booking.issue}\n` +
     `Location: ${booking.location}\n` +
-    `Time: ${booking.time}\n` +
-    `We'll follow up shortly!`;
+    `Someone will follow up with you as soon as possible.`;
 
   await twilioClient.messages.create({
     body,
