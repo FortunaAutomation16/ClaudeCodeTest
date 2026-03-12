@@ -145,6 +145,12 @@ function playText(twiml, text) {
   twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, text);
 }
 
+async function playElevenLabs(twiml, text, callSid) {
+  const filename = `${callSid}-${Date.now()}.mp3`;
+  await generateSpeech(text, filename);
+  twiml.play(`${BASE_URL}/audio/${filename}`);
+}
+
 function cleanReply(reply) {
   return reply
     .replace(/\[BOOKING:[^\]]*\]/g, '')
@@ -194,7 +200,7 @@ app.post('/call/incoming', async (req, res) => {
   console.log(`📞 Incoming call [${callSid}]`);
 
   const greeting = `Hi, you've reached ${BUSINESS_NAME}. How can I help you today?`;
-  playText(twiml, greeting);
+  await playElevenLabs(twiml, greeting, callSid);
 
   twiml.gather({
     input: 'speech',
@@ -218,7 +224,7 @@ app.post('/call/respond', async (req, res) => {
 
   // Nothing heard for 20s — end the call gracefully
   if (!speech) {
-    twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, "We didn't hear anything. Feel free to call back anytime. Take care!");
+    await playElevenLabs(twiml, "We didn't hear anything. Feel free to call back anytime. Take care!", callSid);
     twiml.hangup();
     delete conversations[callSid];
     return res.type('text/xml').send(twiml.toString());
@@ -230,7 +236,7 @@ app.post('/call/respond', async (req, res) => {
     aiReply = await getAIResponse(callSid, speech);
   } catch (err) {
     console.error('❌ AI error:', err.message);
-    twiml.say({ voice: 'Polly.Joanna-Neural', language: 'en-US' }, "I'm sorry, there was a technical issue. Please call back shortly.");
+    playText(twiml, "I'm sorry, there was a technical issue. Please call back shortly.");
     twiml.hangup();
     return res.type('text/xml').send(twiml.toString());
   }
@@ -250,7 +256,7 @@ app.post('/call/respond', async (req, res) => {
   const shouldEnd = aiReply.includes('[END]') || !!booking;
   const text = cleanReply(aiReply);
 
-  playText(twiml, text);
+  await playElevenLabs(twiml, text, callSid);
 
   if (shouldEnd) {
     twiml.hangup();
