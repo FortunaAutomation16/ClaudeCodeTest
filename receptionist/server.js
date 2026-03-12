@@ -25,6 +25,7 @@ const {
   BUSINESS_NAME,
   BUSINESS_PHONE,
   BASE_URL,
+  ZAPIER_WEBHOOK_URL,
   PORT = 3000,
 } = process.env;
 
@@ -180,6 +181,16 @@ async function sendSMSConfirmation(booking) {
   console.log(`📱 SMS sent to customer (${booking.phone}) and owner (${BUSINESS_PHONE})`);
 }
 
+async function sendToZapier(booking) {
+  if (!ZAPIER_WEBHOOK_URL) return;
+  await fetch(ZAPIER_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...booking, business: BUSINESS_NAME, timestamp: new Date().toISOString() }),
+  });
+  console.log(`⚡ Booking sent to Zapier`);
+}
+
 function scheduleAudioCleanup(callSid) {
   setTimeout(() => {
     try {
@@ -250,7 +261,9 @@ app.post('/call/respond', async (req, res) => {
     sendSMSConfirmation(booking).catch(err =>
       console.error('❌ SMS failed:', err.message)
     );
-    // TODO Phase 4: write to Google Calendar
+    sendToZapier(booking).catch(err =>
+      console.error('❌ Zapier failed:', err.message)
+    );
   }
 
   const shouldEnd = aiReply.includes('[END]') || !!booking;
