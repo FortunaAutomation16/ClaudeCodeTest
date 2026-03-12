@@ -28,6 +28,9 @@
     }
     .topbar h1 { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
     .week-label { font-size: 13px; color: #7c85a2; }
+    .sync-status { font-size: 12px; color: #4a5270; transition: color 0.3s; }
+    .sync-status.syncing { color: #fbbf24; }
+    .sync-status.synced  { color: #4ade80; }
     .progress-wrap { flex: 1; max-width: 300px; display: flex; align-items: center; gap: 10px; }
     .progress-bar { flex: 1; height: 6px; background: #2d3148; border-radius: 3px; overflow: hidden; }
     .progress-fill { height: 100%; background: #6366f1; border-radius: 3px; transition: width 0.4s; }
@@ -196,6 +199,7 @@
     <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
     <div class="progress-text" id="progressText"></div>
   </div>
+  <div class="sync-status" id="syncStatus"></div>
   <div class="topbar-right">
     <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Export CSV</button>
     <button class="btn btn-primary" onclick="openAdd()">+ Add Lead</button>
@@ -326,6 +330,10 @@
 </div>
 
 <script>
+// ── Config ────────────────────────────────────────────────────────────────
+// Paste your Google Apps Script URL here after setup:
+const SHEETS_URL = '';
+
 // ── Data ──────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'crm_leads_v1';
@@ -336,6 +344,17 @@ let callingId = null;
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
+  syncToSheets();
+}
+
+function syncToSheets() {
+  if (!SHEETS_URL) return;
+  const el = document.getElementById('syncStatus');
+  el.textContent = '↑ Syncing...';
+  el.className = 'sync-status syncing';
+  fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(leads) })
+    .then(() => { el.textContent = '✓ Backed up'; el.className = 'sync-status synced'; })
+    .catch(() => { el.textContent = '⚠ Sync failed'; el.className = 'sync-status'; });
 }
 
 function uid() {
