@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cold Call CRM</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Top Bar ── */
+    .topbar {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    .week-label { font-size: 13px; color: #7c85a2; }
+    .progress-wrap { flex: 1; max-width: 300px; display: flex; align-items: center; gap: 10px; }
+    .progress-bar { flex: 1; height: 6px; background: #2d3148; border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #6366f1; border-radius: 3px; transition: width 0.4s; }
+    .progress-text { font-size: 13px; font-weight: 600; color: #6366f1; white-space: nowrap; }
+    .topbar-right { margin-left: auto; display: flex; gap: 10px; }
+    .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-ghost { background: #2d3148; color: #c0c8e0; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── Layout ── */
+    .layout { display: flex; height: calc(100vh - 57px); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 200px;
+      background: #1a1d27;
+      border-right: 1px solid #2d3148;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .sidebar-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #4a5270; padding: 8px 10px 4px; }
+    .filter-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 7px; border: none; background: transparent;
+      color: #7c85a2; cursor: pointer; font-size: 13px; text-align: left; transition: all 0.15s;
+      width: 100%;
+    }
+    .filter-btn:hover { background: #2d3148; color: #e2e8f0; }
+    .filter-btn.active { background: #25284a; color: #818cf8; font-weight: 600; }
+    .filter-count { background: #2d3148; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+    .filter-btn.active .filter-count { background: #3730a3; color: #a5b4fc; }
+
+    /* ── Main ── */
+    .main { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+    .search-bar {
+      width: 100%; padding: 10px 14px; background: #1a1d27; border: 1px solid #2d3148;
+      border-radius: 8px; color: #e2e8f0; font-size: 14px; margin-bottom: 16px;
+    }
+    .search-bar::placeholder { color: #4a5270; }
+    .search-bar:focus { outline: none; border-color: #6366f1; }
+
+    .leads-count { font-size: 13px; color: #4a5270; margin-bottom: 12px; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px; color: #4a5270;
+      border-bottom: 1px solid #2d3148; white-space: nowrap;
+    }
+    td { padding: 0; border-bottom: 1px solid #1e2133; }
+    tr:hover td { background: #1a1d27; }
+    .td-inner { padding: 11px 12px; display: flex; align-items: center; }
+
+    .business-name { font-weight: 600; color: #e2e8f0; font-size: 14px; }
+    .trade-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+      font-weight: 600; background: #2d3148; color: #7c85a2;
+    }
+    .phone-link { color: #818cf8; text-decoration: none; font-size: 13px; font-weight: 500; }
+    .phone-link:hover { text-decoration: underline; }
+
+    /* ── Status badges ── */
+    .status {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer;
+      border: none; transition: opacity 0.15s; white-space: nowrap;
+    }
+    .status:hover { opacity: 0.8; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .s-new        { background: #1e2133; color: #7c85a2; } .s-new .status-dot        { background: #4a5270; }
+    .s-no-answer  { background: #2d2a1a; color: #fbbf24; } .s-no-answer .status-dot  { background: #fbbf24; }
+    .s-voicemail  { background: #2a1f2d; color: #c084fc; } .s-voicemail .status-dot  { background: #c084fc; }
+    .s-not-interested { background: #2d1a1a; color: #f87171; } .s-not-interested .status-dot { background: #f87171; }
+    .s-interested { background: #1a2a3d; color: #60a5fa; } .s-interested .status-dot { background: #60a5fa; }
+    .s-sold       { background: #1a2d1e; color: #4ade80; } .s-sold .status-dot       { background: #4ade80; }
+
+    /* ── Actions ── */
+    .actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      background: none; border: none; cursor: pointer; color: #4a5270; padding: 4px;
+      border-radius: 5px; font-size: 15px; transition: all 0.15s; line-height: 1;
+    }
+    .icon-btn:hover { color: #e2e8f0; background: #2d3148; }
+    .icon-btn.danger:hover { color: #f87171; }
+
+    .follow-up-date { font-size: 12px; color: #fbbf24; font-weight: 500; }
+    .follow-up-date.overdue { color: #f87171; }
+    .notes-preview { font-size: 12px; color: #4a5270; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Modal ── */
+    .overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 14px;
+      padding: 28px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+    .form-row { display: flex; gap: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; flex: 1; }
+    label { font-size: 12px; font-weight: 600; color: #7c85a2; text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select, textarea {
+      background: #0f1117; border: 1px solid #2d3148; border-radius: 7px;
+      color: #e2e8f0; padding: 9px 12px; font-size: 14px; width: 100%;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #6366f1; }
+    select option { background: #1a1d27; }
+    textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+    /* ── Call Mode ── */
+    .call-mode {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 300; align-items: center; justify-content: center;
+    }
+    .call-mode.open { display: flex; }
+    .call-card {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 18px;
+      padding: 36px; width: 440px; text-align: center;
+    }
+    .call-card .biz { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .call-card .sub { font-size: 14px; color: #7c85a2; margin-bottom: 6px; }
+    .call-card .phone-big { font-size: 26px; font-weight: 700; color: #818cf8; margin: 16px 0; letter-spacing: 1px; }
+    .call-card .phone-big a { color: inherit; text-decoration: none; }
+    .call-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #4a5270; margin-bottom: 12px; }
+    .call-statuses { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
+    .call-status-btn {
+      padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 700; transition: all 0.15s;
+    }
+    .call-status-btn:hover { transform: translateY(-1px); }
+    .csb-no-answer  { background: #2d2a1a; color: #fbbf24; }
+    .csb-voicemail  { background: #2a1f2d; color: #c084fc; }
+    .csb-not-interested { background: #2d1a1a; color: #f87171; }
+    .csb-interested { background: #1a2a3d; color: #60a5fa; }
+    .csb-sold       { background: #1a2d1e; color: #4ade80; }
+    .call-notes { width: 100%; margin-bottom: 12px; }
+    .call-followup { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 13px; color: #7c85a2; }
+    .call-followup input { width: auto; padding: 6px 10px; font-size: 13px; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 60px 20px; color: #4a5270; }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty p { font-size: 14px; }
+
+    /* ── Export ── */
+    .export-link { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <h1>📞 Cold Call CRM</h1>
+  <div class="week-label" id="weekLabel"></div>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText"></div>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Export CSV</button>
+    <button class="btn btn-primary" onclick="openAdd()">+ Add Lead</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-label">Filter</div>
+    <button class="filter-btn active" onclick="setFilter('all', this)">
+      All <span class="filter-count" id="count-all">0</span>
+    </button>
+    <button class="filter-btn" onclick="setFilter('new', this)">
+      New <span class="filter-count" id="count-new">0</span>
+    </button>
+    <button class="filter-btn" onclick="setFilter('no-answer', this)">
+      No Answer <span class="filter-count" id="count-no-answer">0</span>
+    </button>
+    <button class="filter-btn" onclick="setFilter('voicemail', this)">
+      Voicemail <span class="filter-count" id="count-voicemail">0</span>
+    </button>
+    <button class="filter-btn" onclick="setFilter('interested', this)">
+      Interested <span class="filter-count" id="count-interested">0</span>
+    </button>
+    <button class="filter-btn" onclick="setFilter('not-interested', this)">
+      Not Interested <span class="filter-count" id="count-not-interested">0</span>
+    </button>
+    <button class="filter-btn" onclick="setFilter('sold', this)">
+      Sold 🎉 <span class="filter-count" id="count-sold">0</span>
+    </button>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <input class="search-bar" type="text" placeholder="Search by business, city, trade..." oninput="render()" id="searchInput">
+    <div class="leads-count" id="leadsCount"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Business</th>
+          <th>Trade</th>
+          <th>City</th>
+          <th>Phone</th>
+          <th>Status</th>
+          <th>Follow-up</th>
+          <th>Notes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="leadsBody"></tbody>
+    </table>
+    <div class="empty" id="emptyState" style="display:none">
+      <div class="empty-icon">📋</div>
+      <p>No leads here yet. Add one to get started.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <h2 id="modalTitle">Add Lead</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Business Name *</label>
+        <input id="f-business" placeholder="Joe's Plumbing" />
+      </div>
+      <div class="form-group">
+        <label>Trade *</label>
+        <select id="f-trade">
+          <option value="">Select...</option>
+          <option>Electrician</option>
+          <option>Plumber</option>
+          <option>HVAC</option>
+          <option>Roofer</option>
+          <option>General Contractor</option>
+          <option>Painter</option>
+          <option>Landscaper</option>
+          <option>Carpenter</option>
+          <option>Flooring</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>City</label>
+        <input id="f-city" placeholder="Toronto" />
+      </div>
+      <div class="form-group">
+        <label>Phone *</label>
+        <input id="f-phone" placeholder="+1 647 555 0100" type="tel" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="f-notes" placeholder="Anything useful..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLead()">Save Lead</button>
+    </div>
+  </div>
+</div>
+
+<!-- Call Mode -->
+<div class="call-mode" id="callMode">
+  <div class="call-card">
+    <div class="biz" id="cm-biz"></div>
+    <div class="sub" id="cm-sub"></div>
+    <div class="phone-big"><a id="cm-phone-link" href=""></a></div>
+    <div class="call-label">How did it go?</div>
+    <div class="call-statuses">
+      <button class="call-status-btn csb-no-answer"      onclick="setCallStatus('no-answer')">No Answer</button>
+      <button class="call-status-btn csb-voicemail"      onclick="setCallStatus('voicemail')">Voicemail</button>
+      <button class="call-status-btn csb-not-interested" onclick="setCallStatus('not-interested')">Not Interested</button>
+      <button class="call-status-btn csb-interested"     onclick="setCallStatus('interested')">Interested</button>
+      <button class="call-status-btn csb-sold"           onclick="setCallStatus('sold')">Sold 🎉</button>
+    </div>
+    <textarea class="call-notes" id="cm-notes" placeholder="Notes from this call..." rows="3"></textarea>
+    <div class="call-followup" id="cm-followup-row">
+      <label>Follow-up date:</label>
+      <input type="date" id="cm-followup" />
+    </div>
+    <button class="btn btn-ghost" onclick="closeCallMode()">Close without saving</button>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'crm_leads_v1';
+let leads = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let currentFilter = 'all';
+let editingId = null;
+let callingId = null;
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// ── Week tracking ─────────────────────────────────────────────────────────
+
+function getWeekStart(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function callsThisWeek() {
+  const weekStart = getWeekStart();
+  return leads.filter(l => {
+    if (!l.dateCalled) return false;
+    return new Date(l.dateCalled) >= weekStart;
+  }).length;
+}
+
+function updateProgress() {
+  const count = callsThisWeek();
+  const pct = Math.min(100, (count / 100) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = count + '/100';
+  const weekStart = getWeekStart();
+  const opts = { month: 'short', day: 'numeric' };
+  document.getElementById('weekLabel').textContent =
+    'Week of ' + weekStart.toLocaleDateString('en-US', opts);
+}
+
+// ── Filter counts ─────────────────────────────────────────────────────────
+
+function updateCounts() {
+  const statuses = ['new', 'no-answer', 'voicemail', 'not-interested', 'interested', 'sold'];
+  document.getElementById('count-all').textContent = leads.length;
+  statuses.forEach(s => {
+    const el = document.getElementById('count-' + s);
+    if (el) el.textContent = leads.filter(l => l.status === s).length;
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+
+const STATUS_LABELS = {
+  'new': 'New',
+  'no-answer': 'No Answer',
+  'voicemail': 'Voicemail',
+  'not-interested': 'Not Interested',
+  'interested': 'Interested',
+  'sold': 'Sold',
+};
+
+function render() {
+  const query = document.getElementById('searchInput').value.toLowerCase();
+  let filtered = leads.filter(l => {
+    if (currentFilter !== 'all' && l.status !== currentFilter) return false;
+    if (query) {
+      return (l.business + l.city + l.trade + l.notes).toLowerCase().includes(query);
+    }
+    return true;
+  });
+
+  // Sort: follow-up overdue first, then interested, then rest by date added
+  filtered.sort((a, b) => {
+    const aOver = isOverdue(a);
+    const bOver = isOverdue(b);
+    if (aOver && !bOver) return -1;
+    if (!aOver && bOver) return 1;
+    if (a.status === 'interested' && b.status !== 'interested') return -1;
+    if (a.status !== 'interested' && b.status === 'interested') return 1;
+    return new Date(b.dateAdded) - new Date(a.dateAdded);
+  });
+
+  document.getElementById('leadsCount').textContent =
+    filtered.length + ' lead' + (filtered.length !== 1 ? 's' : '');
+
+  const body = document.getElementById('leadsBody');
+  const empty = document.getElementById('emptyState');
+
+  if (filtered.length === 0) {
+    body.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  body.innerHTML = filtered.map(l => `
+    <tr>
+      <td><div class="td-inner"><span class="business-name">${esc(l.business)}</span></div></td>
+      <td><div class="td-inner"><span class="trade-badge">${esc(l.trade)}</span></div></td>
+      <td><div class="td-inner" style="color:#7c85a2;font-size:13px">${esc(l.city)}</div></td>
+      <td><div class="td-inner"><a class="phone-link" href="tel:${esc(l.phone)}">${esc(l.phone)}</a></div></td>
+      <td><div class="td-inner">
+        <button class="status s-${l.status}" onclick="openCallMode('${l.id}')">
+          <span class="status-dot"></span>${STATUS_LABELS[l.status]}
+        </button>
+      </div></td>
+      <td><div class="td-inner">${followUpCell(l)}</div></td>
+      <td><div class="td-inner"><span class="notes-preview">${esc(l.notes || '—')}</span></div></td>
+      <td><div class="td-inner">
+        <div class="actions">
+          <button class="icon-btn" title="Call" onclick="openCallMode('${l.id}')">📞</button>
+          <button class="icon-btn" title="Edit" onclick="openEdit('${l.id}')">✏️</button>
+          <button class="icon-btn danger" title="Delete" onclick="deleteLead('${l.id}')">🗑</button>
+        </div>
+      </div></td>
+    </tr>
+  `).join('');
+
+  updateCounts();
+  updateProgress();
+}
+
+function followUpCell(l) {
+  if (!l.followUpDate) return '<span style="color:#4a5270;font-size:12px">—</span>';
+  const cls = isOverdue(l) ? 'follow-up-date overdue' : 'follow-up-date';
+  const label = isOverdue(l) ? '⚠ ' : '';
+  return `<span class="${cls}">${label}${l.followUpDate}</span>`;
+}
+
+function isOverdue(l) {
+  if (!l.followUpDate) return false;
+  return new Date(l.followUpDate) < new Date(new Date().toDateString());
+}
+
+function esc(str = '') {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+// ── Add / Edit Modal ──────────────────────────────────────────────────────
+
+function openAdd() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add Lead';
+  clearForm();
+  document.getElementById('addModal').classList.add('open');
+}
+
+function openEdit(id) {
+  const l = leads.find(x => x.id === id);
+  if (!l) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Lead';
+  document.getElementById('f-business').value = l.business || '';
+  document.getElementById('f-trade').value = l.trade || '';
+  document.getElementById('f-city').value = l.city || '';
+  document.getElementById('f-phone').value = l.phone || '';
+  document.getElementById('f-notes').value = l.notes || '';
+  document.getElementById('addModal').classList.add('open');
+}
+
+function clearForm() {
+  ['f-business','f-trade','f-city','f-phone','f-notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+
+function closeModal() {
+  document.getElementById('addModal').classList.remove('open');
+}
+
+function saveLead() {
+  const business = document.getElementById('f-business').value.trim();
+  const phone    = document.getElementById('f-phone').value.trim();
+  if (!business || !phone) { alert('Business name and phone are required.'); return; }
+
+  if (editingId) {
+    const l = leads.find(x => x.id === editingId);
+    Object.assign(l, {
+      business,
+      trade: document.getElementById('f-trade').value,
+      city:  document.getElementById('f-city').value.trim(),
+      phone,
+      notes: document.getElementById('f-notes').value.trim(),
+    });
+  } else {
+    leads.unshift({
+      id: uid(),
+      business,
+      trade: document.getElementById('f-trade').value,
+      city:  document.getElementById('f-city').value.trim(),
+      phone,
+      notes: document.getElementById('f-notes').value.trim(),
+      status: 'new',
+      dateAdded: new Date().toISOString(),
+      dateCalled: null,
+      followUpDate: null,
+    });
+  }
+  save();
+  closeModal();
+  render();
+}
+
+function deleteLead(id) {
+  if (!confirm('Delete this lead?')) return;
+  leads = leads.filter(l => l.id !== id);
+  save();
+  render();
+}
+
+// ── Call Mode ─────────────────────────────────────────────────────────────
+
+function openCallMode(id) {
+  const l = leads.find(x => x.id === id);
+  if (!l) return;
+  callingId = id;
+  document.getElementById('cm-biz').textContent = l.business;
+  document.getElementById('cm-sub').textContent = [l.trade, l.city].filter(Boolean).join(' · ');
+  document.getElementById('cm-phone-link').textContent = l.phone;
+  document.getElementById('cm-phone-link').href = 'tel:' + l.phone;
+  document.getElementById('cm-notes').value = l.notes || '';
+  document.getElementById('cm-followup').value = l.followUpDate || '';
+  document.getElementById('callMode').classList.add('open');
+}
+
+function setCallStatus(status) {
+  const l = leads.find(x => x.id === callingId);
+  if (!l) return;
+  l.status = status;
+  l.dateCalled = new Date().toISOString();
+  l.notes = document.getElementById('cm-notes').value.trim();
+  l.followUpDate = document.getElementById('cm-followup').value || null;
+  save();
+  closeCallMode();
+  render();
+}
+
+function closeCallMode() {
+  document.getElementById('callMode').classList.remove('open');
+  callingId = null;
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────────
+
+function exportCSV() {
+  const headers = ['Business','Trade','City','Phone','Status','Date Added','Date Called','Follow-up','Notes'];
+  const rows = leads.map(l => [
+    l.business, l.trade, l.city, l.phone, l.status,
+    l.dateAdded ? l.dateAdded.slice(0,10) : '',
+    l.dateCalled ? l.dateCalled.slice(0,10) : '',
+    l.followUpDate || '',
+    (l.notes || '').replace(/\n/g,' '),
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv,' + encodeURIComponent(csv);
+  a.download = 'cold-calls-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+// ── Close modals on overlay click ─────────────────────────────────────────
+
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('addModal')) closeModal();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+render();
+</script>
+</body>
+</html>
